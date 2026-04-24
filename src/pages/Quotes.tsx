@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import Header from '../components/layout/Header';
 import {
-  Plus, X, ChevronDown, ChevronRight, Trash2, Search, ClipboardList, CheckCircle2,
+  Plus, X, ChevronDown, ChevronRight, Trash2, Search, ClipboardList, CheckCircle2, Receipt,
 } from 'lucide-react';
 
 interface Part {
@@ -139,6 +139,13 @@ export default function Quotes() {
   const [convertNotes, setConvertNotes] = useState('');
   const [converting, setConverting] = useState(false);
   const [convertedOrderNumber, setConvertedOrderNumber] = useState<string | null>(null);
+
+  const [invoiceQuote, setInvoiceQuote] = useState<Quote | null>(null);
+  const [invoiceDueDate, setInvoiceDueDate] = useState('');
+  const [invoiceTerms, setInvoiceTerms] = useState('Net 30');
+  const [invoiceNotes, setInvoiceNotes] = useState('');
+  const [invoicing, setInvoicing] = useState(false);
+  const [createdInvoiceNumber, setCreatedInvoiceNumber] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -353,6 +360,56 @@ export default function Quotes() {
     setConvertedOrderNumber(orderNumber);
     setConverting(false);
     load();
+  };
+
+  const openInvoiceModal = (quote: Quote) => {
+    setInvoiceQuote(quote);
+    setInvoiceDueDate(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
+    setInvoiceTerms('Net 30');
+    setInvoiceNotes(quote.notes ?? '');
+    setCreatedInvoiceNumber(null);
+  };
+
+  const submitInvoice = async () => {
+    if (!invoiceQuote) return;
+    setInvoicing(true);
+
+    const n = Math.floor(1000 + Math.random() * 9000);
+    const invoiceNumber = `INV-${n}`;
+
+    const { data: inv } = await supabase
+      .from('invoices')
+      .insert({
+        invoice_number: invoiceNumber,
+        customer_name: invoiceQuote.customer_name,
+        customer_email: invoiceQuote.customer_email || null,
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: invoiceDueDate,
+        payment_terms: invoiceTerms || 'Net 30',
+        notes: invoiceNotes.trim() || null,
+        quote_id: invoiceQuote.id,
+        status: 'draft',
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (inv) {
+      const lineInserts = invoiceQuote.lines.map((l, i) => ({
+        invoice_id: inv.id,
+        part_id: l.part_id || null,
+        description: l.description,
+        quantity: Number(l.quantity),
+        unit_price: Number(l.unit_price),
+        discount_pct: Number(l.discount_pct),
+        sort_order: i,
+      }));
+      if (lineInserts.length > 0) {
+        await supabase.from('invoice_lines').insert(lineInserts);
+      }
+    }
+
+    setCreatedInvoiceNumber(invoiceNumber);
+    setInvoicing(false);
   };
 
   const filtered = quotes.filter(q =>
@@ -717,6 +774,14 @@ export default function Quotes() {
                         </td>
                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
+                            {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted') && (
+                              <button
+                                onClick={() => openInvoiceModal(quote)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                              >
+                                <Receipt size={12} /> Create Invoice
+                              </button>
+                            )}
                             {(quote.status === 'draft' || quote.status === 'sent') && (
                               <button
                                 onClick={() => openConvert(quote)}
@@ -890,6 +955,132 @@ export default function Quotes() {
           </table>
         </div>
       </div>
+
+      {/* Create Invoice Modal */}
+      {invoiceQuote && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center">
+                  <Receipt size={18} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-slate-900">Create Invoice from Quote</h2>
+                  <p className="text-xs text-slate-500">{invoiceQuote.quote_number} — {invoiceQuote.customer_name}</p>
+                </div>
+              </div>
+              <button onClick={() => setInvoiceQuote(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            {createdInvoiceNumber ? (
+              <div className="px-6 py-10 text-center">
+                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 size={32} className="text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Invoice Created</h3>
+                <p className="text-sm text-slate-500 mb-1">
+                  Invoice <span className="font-mono font-bold text-slate-800">{createdInvoiceNumber}</span> saved as draft.
+                </p>
+                <p className="text-sm text-slate-400 mb-6">Navigate to Invoices to review, edit, or send it.</p>
+                <button
+                  onClick={() => setInvoiceQuote(null)}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <div className="px-6 py-5 space-y-5">
+                {/* Line summary */}
+                <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Invoice Lines</p>
+                  {invoiceQuote.lines.map(line => {
+                    const lTotal = Number(line.quantity) * Number(line.unit_price) * (1 - Number(line.discount_pct) / 100);
+                    return (
+                      <div key={line.id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {line.part?.part_number && (
+                            <span className="font-mono text-xs text-slate-500 shrink-0">{line.part.part_number}</span>
+                          )}
+                          <span className="text-slate-700 truncate">{line.description}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 ml-3">
+                          <span className="text-slate-500 text-xs">x{Number(line.quantity)}</span>
+                          {Number(line.discount_pct) > 0 && (
+                            <span className="text-xs text-amber-600">-{line.discount_pct}%</span>
+                          )}
+                          <span className="font-semibold text-slate-800">{formatCurrency(lTotal)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="pt-2 border-t border-slate-200 flex justify-between">
+                    <span className="text-sm font-semibold text-slate-700">Invoice Total</span>
+                    <span className="text-sm font-bold text-slate-900">{formatCurrency(quoteTotal(invoiceQuote.lines))}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Due Date</label>
+                    <input
+                      type="date"
+                      value={invoiceDueDate}
+                      onChange={e => setInvoiceDueDate(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Payment Terms</label>
+                    <select
+                      value={invoiceTerms}
+                      onChange={e => setInvoiceTerms(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                    >
+                      <option>Net 15</option>
+                      <option>Net 30</option>
+                      <option>Net 45</option>
+                      <option>Net 60</option>
+                      <option>Due on Receipt</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Notes <span className="text-slate-400">(optional)</span></label>
+                  <textarea
+                    rows={2}
+                    value={invoiceNotes}
+                    onChange={e => setInvoiceNotes(e.target.value)}
+                    placeholder="Any notes for this invoice..."
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={submitInvoice}
+                    disabled={invoicing || !invoiceDueDate}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    <Receipt size={15} />
+                    {invoicing ? 'Creating Invoice...' : 'Create Invoice'}
+                  </button>
+                  <button
+                    onClick={() => setInvoiceQuote(null)}
+                    className="px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Convert to Production Order Modal */}
       {convertQuote && (
