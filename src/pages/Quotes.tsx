@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import Header from '../components/layout/Header';
 import {
-  Plus, X, ChevronDown, ChevronRight, Trash2, FileText, Search,
+  Plus, X, ChevronDown, ChevronRight, Trash2, Search, ClipboardList, CheckCircle2,
 } from 'lucide-react';
 
 interface Part {
@@ -133,6 +133,12 @@ export default function Quotes() {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [convertQuote, setConvertQuote] = useState<Quote | null>(null);
+  const [convertShipDate, setConvertShipDate] = useState('');
+  const [convertNotes, setConvertNotes] = useState('');
+  const [converting, setConverting] = useState(false);
+  const [convertedOrderNumber, setConvertedOrderNumber] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -272,6 +278,80 @@ export default function Quotes() {
     await supabase.from('quotes').delete().eq('id', quoteId);
     setDeleteConfirmId(null);
     setDeleting(false);
+    load();
+  };
+
+  const generateOrderNumber = async (): Promise<string> => {
+    const { data } = await supabase
+      .from('sales_orders')
+      .select('order_number')
+      .order('order_number', { ascending: false })
+      .limit(20);
+    let maxNum = 0;
+    for (const row of data ?? []) {
+      const match = (row.order_number as string).match(/^SO-(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    }
+    return `SO-${String(maxNum + 1).padStart(4, '0')}`;
+  };
+
+  const openConvert = (quote: Quote) => {
+    setConvertQuote(quote);
+    setConvertShipDate('');
+    setConvertNotes(quote.notes ?? '');
+    setConvertedOrderNumber(null);
+  };
+
+  const submitConvert = async () => {
+    if (!convertQuote) return;
+    setConverting(true);
+
+    const orderNumber = await generateOrderNumber();
+
+    const { data: soData, error } = await supabase
+      .from('sales_orders')
+      .insert({
+        order_number: orderNumber,
+        customer_name: convertQuote.customer_name,
+        order_date: new Date().toISOString().split('T')[0],
+        required_ship_date: convertShipDate || null,
+        status: 'open',
+        notes: convertNotes.trim() || null,
+        source_quote_id: convertQuote.id,
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (error || !soData) {
+      setConverting(false);
+      return;
+    }
+
+    const linesWithParts = convertQuote.lines.filter(l => l.part_id);
+    if (linesWithParts.length > 0) {
+      await supabase.from('sales_order_lines').insert(
+        linesWithParts.map(l => ({
+          sales_order_id: soData.id,
+          part_id: l.part_id,
+          quantity_ordered: Number(l.quantity),
+          quantity_completed: 0,
+          quantity_shipped: 0,
+          unit_price: Number(l.unit_price),
+          discount_pct: Number(l.discount_pct),
+        }))
+      );
+    }
+
+    await supabase
+      .from('quotes')
+      .update({ status: 'accepted', updated_at: new Date().toISOString() })
+      .eq('id', convertQuote.id);
+
+    setConvertedOrderNumber(orderNumber);
+    setConverting(false);
     load();
   };
 
@@ -637,13 +717,18 @@ export default function Quotes() {
                         </td>
                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
-                            {quote.status === 'accepted' && (
+                            {(quote.status === 'draft' || quote.status === 'sent') && (
                               <button
-                                onClick={() => updateStatus(quote.id, 'accepted')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"
+                                onClick={() => openConvert(quote)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
                               >
-                                <FileText size={12} /> Convert to Invoice
+                                <ClipboardList size={12} /> Convert to Order
                               </button>
+                            )}
+                            {quote.status === 'accepted' && (
+                              <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5">
+                                <CheckCircle2 size={12} /> Order Created
+                              </span>
                             )}
                             <button
                               onClick={() => setDeleteConfirmId(quote.id)}
@@ -805,6 +890,127 @@ export default function Quotes() {
           </table>
         </div>
       </div>
+
+      {/* Convert to Production Order Modal */}
+      {convertQuote && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center">
+                  <ClipboardList size={18} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-slate-900">Convert to Production Order</h2>
+                  <p className="text-xs text-slate-500">{convertQuote.quote_number} — {convertQuote.customer_name}</p>
+                </div>
+              </div>
+              <button onClick={() => setConvertQuote(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            {convertedOrderNumber ? (
+              <div className="px-6 py-10 text-center">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 size={32} className="text-emerald-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Order Created</h3>
+                <p className="text-sm text-slate-500 mb-1">
+                  Production order <span className="font-mono font-bold text-slate-800">{convertedOrderNumber}</span> is now open.
+                </p>
+                <p className="text-sm text-slate-400 mb-6">Quote marked as accepted. Navigate to Sales Orders to manage production.</p>
+                <button
+                  onClick={() => setConvertQuote(null)}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <div className="px-6 py-5 space-y-5">
+                {/* Quote summary */}
+                <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Order Lines</p>
+                  {convertQuote.lines.length === 0 ? (
+                    <p className="text-sm text-slate-400">No line items on this quote.</p>
+                  ) : (
+                    convertQuote.lines.map(line => {
+                      const lTotal = Number(line.quantity) * Number(line.unit_price) * (1 - Number(line.discount_pct) / 100);
+                      return (
+                        <div key={line.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {line.part?.part_number && (
+                              <span className="font-mono text-xs text-slate-500 shrink-0">{line.part.part_number}</span>
+                            )}
+                            {!line.part_id && (
+                              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 shrink-0">no part</span>
+                            )}
+                            <span className="text-slate-700 truncate">{line.description}</span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0 ml-3">
+                            <span className="text-slate-500 text-xs">x{Number(line.quantity)}</span>
+                            <span className="font-semibold text-slate-800">{formatCurrency(lTotal)}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div className="pt-2 border-t border-slate-200 flex justify-between">
+                    <span className="text-sm font-semibold text-slate-700">Total</span>
+                    <span className="text-sm font-bold text-slate-900">{formatCurrency(quoteTotal(convertQuote.lines))}</span>
+                  </div>
+                </div>
+
+                {convertQuote.lines.some(l => !l.part_id) && (
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+                    <span className="shrink-0 mt-0.5">&#9888;</span>
+                    <span>Lines without a linked part will be skipped. Assign parts in the quote before converting if needed.</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Required Ship Date <span className="text-slate-400">(optional)</span></label>
+                  <input
+                    type="date"
+                    value={convertShipDate}
+                    onChange={e => setConvertShipDate(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Production Notes <span className="text-slate-400">(optional)</span></label>
+                  <textarea
+                    rows={2}
+                    value={convertNotes}
+                    onChange={e => setConvertNotes(e.target.value)}
+                    placeholder="Any notes for the production team..."
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={submitConvert}
+                    disabled={converting || convertQuote.lines.filter(l => l.part_id).length === 0}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    <ClipboardList size={15} />
+                    {converting ? 'Creating Order...' : 'Create Production Order'}
+                  </button>
+                  <button
+                    onClick={() => setConvertQuote(null)}
+                    className="px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
