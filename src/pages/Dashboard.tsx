@@ -154,7 +154,7 @@ export default function Dashboard() {
 
     const open = data.filter(l => {
       const so = l.sales_order as any;
-      return so?.status !== 'shipped' && so?.status !== 'cancelled';
+      return so != null && so?.status !== 'shipped' && so?.status !== 'cancelled';
     }) as any as OrderLineWithPart[];
 
     const orderSet = new Set(open.map(l => l.sales_order.order_number));
