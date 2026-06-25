@@ -9,6 +9,7 @@ import Parts from './pages/Parts';
 import Quotes from './pages/Quotes';
 import Invoices from './pages/Invoices';
 import PurchaseOrders from './pages/PurchaseOrders';
+import Tasks from './pages/Tasks';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -26,6 +27,7 @@ export default function App() {
         {currentPage === 'quotes' && <Quotes />}
         {currentPage === 'invoices' && <Invoices />}
         {currentPage === 'purchase-orders' && <PurchaseOrders />}
+        {currentPage === 'tasks' && <Tasks />}
       </main>
     </div>
   );

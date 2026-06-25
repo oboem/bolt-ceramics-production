@@ -1,6 +1,6 @@
-import { LayoutDashboard, ShoppingCart, Package, Droplets, Layers, FlaskConical, FileText, Receipt, ClipboardList, Scale } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Droplets, Layers, FlaskConical, FileText, Receipt, ClipboardList, Scale, CheckSquare } from 'lucide-react';
 
-export type Page = 'dashboard' | 'orders' | 'inventory' | 'clay' | 'labor' | 'parts' | 'quotes' | 'invoices' | 'purchase-orders';
+export type Page = 'dashboard' | 'orders' | 'inventory' | 'clay' | 'labor' | 'parts' | 'quotes' | 'invoices' | 'purchase-orders' | 'tasks';
 
 interface SidebarProps {
   currentPage: Page;
@@ -17,6 +17,7 @@ const navItems: { id: Page; label: string; icon: React.ReactNode; description: s
   { id: 'quotes', label: 'Quotes', icon: <FileText size={20} />, description: 'Customer quotes' },
   { id: 'invoices', label: 'Invoices & AR', icon: <Receipt size={20} />, description: 'Billing & payments' },
   { id: 'purchase-orders', label: 'Purchase Orders', icon: <ClipboardList size={20} />, description: 'Vendor POs' },
+  { id: 'tasks', label: 'Tasks', icon: <CheckSquare size={20} />, description: 'To-do & done', group: 'tasks-divider' },
 ];
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
@@ -40,6 +41,11 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             {item.group === 'divider' && (
               <div className="pt-3 pb-1 px-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Accounting</p>
+              </div>
+            )}
+            {item.group === 'tasks-divider' && (
+              <div className="pt-3 pb-1 px-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Team</p>
               </div>
             )}
             <button
