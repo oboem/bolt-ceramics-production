@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import Header from '../components/layout/Header';
 import Badge from '../components/ui/Badge';
 import { getPartCategory, CATEGORY_LABELS, CATEGORY_COLORS } from '../types';
-import { AlertTriangle, Search } from 'lucide-react';
+import { AlertTriangle, Search, Pencil } from 'lucide-react';
 
 interface InvRow {
   id: string;
@@ -95,6 +95,10 @@ export default function Inventory() {
           </div>
         </div>
 
+        <p className="text-xs text-slate-400 -mt-3 flex items-center gap-1">
+          <Pencil size={10} /> Click any quantity in the <span className="font-semibold">On Hand</span> column to update it.
+        </p>
+
         {loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">Loading inventory...</div>
         ) : Object.keys(grouped).length === 0 ? (
@@ -145,9 +149,11 @@ export default function Inventory() {
                           ) : (
                             <button
                               onClick={() => { setEditingId(row.id); setEditQty(row.quantity_on_hand); }}
-                              className={`text-sm font-semibold hover:underline ${isOut ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-slate-900'}`}
+                              className={`group inline-flex items-center gap-1.5 text-sm font-semibold rounded px-2 py-0.5 hover:bg-amber-50 transition-colors ${isOut ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-slate-900'}`}
+                              title="Click to edit quantity"
                             >
                               {row.quantity_on_hand} {row.part?.unit}
+                              <Pencil size={11} className="opacity-0 group-hover:opacity-60 transition-opacity text-amber-500" />
                             </button>
                           )}
                         </td>
