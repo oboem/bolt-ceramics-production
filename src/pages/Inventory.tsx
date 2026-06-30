@@ -24,6 +24,8 @@ export default function Inventory() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState<number>(0);
+  const [editingReorderId, setEditingReorderId] = useState<string | null>(null);
+  const [editReorderPt, setEditReorderPt] = useState<number>(0);
 
   const load = async () => {
     setLoading(true);
@@ -40,6 +42,12 @@ export default function Inventory() {
   const saveQty = async (id: string) => {
     await supabase.from('inventory').update({ quantity_on_hand: editQty, updated_at: new Date().toISOString() }).eq('id', id);
     setEditingId(null);
+    load();
+  };
+
+  const saveReorderPt = async (id: string) => {
+    await supabase.from('inventory').update({ reorder_point: editReorderPt, updated_at: new Date().toISOString() }).eq('id', id);
+    setEditingReorderId(null);
     load();
   };
 
@@ -96,7 +104,7 @@ export default function Inventory() {
         </div>
 
         <p className="text-xs text-slate-400 -mt-3 flex items-center gap-1">
-          <Pencil size={10} /> Click any quantity in the <span className="font-semibold">On Hand</span> column to update it.
+          <Pencil size={10} /> Click any value in the <span className="font-semibold">On Hand</span> or <span className="font-semibold">Reorder Pt.</span> columns to update it.
         </p>
 
         {loading ? (
@@ -141,6 +149,7 @@ export default function Inventory() {
                                 className="w-24 text-sm text-right border border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
                                 value={editQty}
                                 onChange={e => setEditQty(Number(e.target.value))}
+                                onKeyDown={e => { if (e.key === 'Enter') saveQty(row.id); if (e.key === 'Escape') setEditingId(null); }}
                                 autoFocus
                               />
                               <button onClick={() => saveQty(row.id)} className="text-xs font-medium text-green-600 hover:text-green-700">Save</button>
@@ -157,8 +166,31 @@ export default function Inventory() {
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-slate-400">
-                          {row.reorder_point > 0 ? `${row.reorder_point} ${row.part?.unit}` : '—'}
+                        <td className="px-4 py-3 text-right">
+                          {editingReorderId === row.id ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <input
+                                type="number"
+                                min={0}
+                                className="w-24 text-sm text-right border border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                value={editReorderPt}
+                                onChange={e => setEditReorderPt(Number(e.target.value))}
+                                onKeyDown={e => { if (e.key === 'Enter') saveReorderPt(row.id); if (e.key === 'Escape') setEditingReorderId(null); }}
+                                autoFocus
+                              />
+                              <button onClick={() => saveReorderPt(row.id)} className="text-xs font-medium text-green-600 hover:text-green-700">Save</button>
+                              <button onClick={() => setEditingReorderId(null)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingReorderId(row.id); setEditReorderPt(row.reorder_point); }}
+                              className="group inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 rounded px-2 py-0.5 hover:bg-amber-50 transition-colors"
+                              title="Click to edit reorder point"
+                            >
+                              {row.reorder_point > 0 ? `${row.reorder_point} ${row.part?.unit}` : '—'}
+                              <Pencil size={11} className="opacity-0 group-hover:opacity-60 transition-opacity text-amber-500" />
+                            </button>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-500">{row.location ?? '—'}</td>
                         <td className="px-4 py-3">
