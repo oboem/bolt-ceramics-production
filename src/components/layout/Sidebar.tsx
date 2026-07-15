@@ -1,4 +1,5 @@
-import { LayoutDashboard, ShoppingCart, Package, Droplets, Layers, FlaskConical, FileText, Receipt, ClipboardList, Scale, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Droplets, Layers, FlaskConical, FileText, Receipt, ClipboardList, Scale, CheckSquare, Beaker } from 'lucide-react';
+import { useSimulation } from '../../lib/simulationContext';
 
 export type Page = 'dashboard' | 'orders' | 'inventory' | 'clay' | 'labor' | 'parts' | 'quotes' | 'invoices' | 'purchase-orders' | 'tasks';
 
@@ -21,6 +22,8 @@ const navItems: { id: Page; label: string; icon: React.ReactNode; description: s
 ];
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+  const { simulationMode, toggleSimulation } = useSimulation();
+
   return (
     <aside className="w-64 bg-slate-900 min-h-screen flex flex-col">
       <div className="px-6 py-5 border-b border-slate-700/60">
@@ -35,8 +38,8 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item, idx) => (
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {navItems.map((item) => (
           <div key={item.id}>
             {item.group === 'divider' && (
               <div className="pt-3 pb-1 px-3">
@@ -69,6 +72,40 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           </div>
         ))}
       </nav>
+
+      <div className="px-4 py-3 border-t border-slate-700/60">
+        <button
+          onClick={toggleSimulation}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+            simulationMode
+              ? 'bg-teal-500/15 border border-teal-500/30 hover:bg-teal-500/25'
+              : 'hover:bg-slate-800'
+          }`}
+        >
+          <span className={`flex-shrink-0 ${simulationMode ? 'text-teal-400' : 'text-slate-500'}`}>
+            <Beaker size={18} />
+          </span>
+          <div className="flex-1 text-left">
+            <p className={`text-sm font-medium leading-tight ${simulationMode ? 'text-teal-300' : 'text-slate-300'}`}>
+              Simulation Mode
+            </p>
+            <p className={`text-xs leading-tight ${simulationMode ? 'text-teal-500/70' : 'text-slate-500'}`}>
+              {simulationMode ? 'Using demo data' : 'Use realistic demo data'}
+            </p>
+          </div>
+          <span
+            className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 ${
+              simulationMode ? 'bg-teal-500' : 'bg-slate-600'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                simulationMode ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </span>
+        </button>
+      </div>
 
       <div className="px-4 py-4 border-t border-slate-700/60">
         <p className="text-slate-500 text-xs text-center">

@@ -10,14 +10,23 @@ import Quotes from './pages/Quotes';
 import Invoices from './pages/Invoices';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Tasks from './pages/Tasks';
+import { SimulationProvider, useSimulation } from './lib/simulationContext';
+import { Beaker } from 'lucide-react';
 
-export default function App() {
+function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  const { simulationMode } = useSimulation();
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {simulationMode && (
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-teal-500/10 border-b border-teal-500/20 text-teal-700 text-xs font-medium">
+            <Beaker size={13} />
+            Simulation mode active — showing realistic demo data
+          </div>
+        )}
         {currentPage === 'dashboard' && <Dashboard />}
         {currentPage === 'orders' && <SalesOrders />}
         {currentPage === 'inventory' && <Inventory />}
@@ -30,5 +39,13 @@ export default function App() {
         {currentPage === 'tasks' && <Tasks />}
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <SimulationProvider>
+      <AppContent />
+    </SimulationProvider>
   );
 }
