@@ -1,5 +1,6 @@
-import { LayoutDashboard, ShoppingCart, Package, Droplets, Layers, FlaskConical, FileText, Receipt, ClipboardList, Scale, CheckSquare, Beaker } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Droplets, Layers, FlaskConical, FileText, Receipt, ClipboardList, Scale, CheckSquare, Beaker, LogOut } from 'lucide-react';
 import { useSimulation } from '../../lib/simulationContext';
+import { useAuth } from '../../lib/authContext';
 
 export type Page = 'dashboard' | 'orders' | 'inventory' | 'clay' | 'labor' | 'parts' | 'quotes' | 'invoices' | 'purchase-orders' | 'tasks';
 
@@ -23,6 +24,7 @@ const navItems: { id: Page; label: string; icon: React.ReactNode; description: s
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { simulationMode, toggleSimulation } = useSimulation();
+  const { session, signOut } = useAuth();
 
   return (
     <aside className="w-64 bg-slate-900 min-h-screen flex flex-col">
@@ -107,7 +109,21 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </button>
       </div>
 
-      <div className="px-4 py-4 border-t border-slate-700/60">
+      <div className="px-4 py-4 border-t border-slate-700/60 space-y-3">
+        {session?.user?.email && (
+          <button
+            onClick={() => signOut()}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-150 group"
+          >
+            <span className="flex-shrink-0 text-slate-500 group-hover:text-slate-300">
+              <LogOut size={18} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium leading-tight truncate">{session.user.email}</p>
+              <p className="text-xs leading-tight text-slate-500">Sign out</p>
+            </div>
+          </button>
+        )}
         <p className="text-slate-500 text-xs text-center">
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
         </p>

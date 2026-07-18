@@ -10,12 +10,27 @@ import Quotes from './pages/Quotes';
 import Invoices from './pages/Invoices';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Tasks from './pages/Tasks';
+import SignIn from './pages/SignIn';
 import { SimulationProvider, useSimulation } from './lib/simulationContext';
-import { Beaker } from 'lucide-react';
+import { AuthProvider, useAuth } from './lib/authContext';
+import { Beaker, Loader2 } from 'lucide-react';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const { simulationMode } = useSimulation();
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <Loader2 size={24} className="animate-spin text-amber-500" />
+      </div>
+    );
+  }
+
+  if (!session && !simulationMode) {
+    return <SignIn />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
@@ -44,8 +59,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SimulationProvider>
-      <AppContent />
-    </SimulationProvider>
+    <AuthProvider>
+      <SimulationProvider>
+        <AppContent />
+      </SimulationProvider>
+    </AuthProvider>
   );
 }
